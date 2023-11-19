@@ -1,19 +1,44 @@
 package main
 
 import (
-  "fmt"
+  "encoding/json"
   "log"
+
   "github.com/gofiber/fiber/v2"
 )
 
-func main() {
-  fmt.Print("hollup... let him cook")
+type Todo struct{
+  ID    int     `json:"id"`
+  Title string  `json:"title"`
+  Done  bool    `json:"done"`
+  Body  string  `json:"body"`
+}
 
+func main() {
   app := fiber.New()
 
+  todos := []Todo{}
+
   app.Get("/healthcheck", func(c *fiber.Ctx) error {
-    return c.SendString("OK bruh")
+    return c.SendString("OK")
   })
+
+  app.Post("/api/todos", func(c *fiber.Ctx) error {
+    body := c.Body()
+
+    todo := &Todo{}
+
+    if err := json.Unmarshal(body, todo); err != nil {
+      log.Println("Error parsing request body:", err)
+      return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
+    }
+
+    todo.ID = len(todos) + 1
+    todos = append(todos, *todo)
+
+    return c.JSON(todos)
+  })
+
 
   log.Fatal(app.Listen(":4000"))
 }

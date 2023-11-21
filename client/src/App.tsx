@@ -61,7 +61,9 @@ function App() {
 
   return (
     <div>
-      <h1>Vault Monster</h1>
+      <h1 className="text-3xl text-red-700 font-bold underline">
+        Vault Monster
+      </h1>
       <div>
         <input type="file" onChange={handleFileChange} />
         <button onClick={handleUpload}>Upload File</button>

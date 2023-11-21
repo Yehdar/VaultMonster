@@ -1,75 +1,82 @@
 package main
 
 import (
-  "encoding/json"
-  "log"
+	"path/filepath"
 
-  "github.com/gofiber/fiber/v2"
- 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
-type Todo struct{
-  ID    int     `json:"id"`
-  Title string  `json:"title"`
-  Done  bool    `json:"done"`
-  Body  string  `json:"body"`
+type Todo struct {
+	ID    int    `json:"id"`
+	Title string `json:"title"`
+	Done  bool   `json:"done"`
+	Body  string `json:"body"`
 }
 
 func main() {
-  app := fiber.New()
+	app := fiber.New()
 
-  app.Use(cors.New(cors.Config{
-    AllowOrigins: "http://localhost:5173",
-    AllowHeaders: "Origin, Content-Type, Accept",
-  }))
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "http://localhost:5173",
+		AllowHeaders: "Origin, Content-Type, Accept",
+	}))
 
-  app.Options("/*", func(c *fiber.Ctx) error {
-    return c.SendStatus(fiber.StatusNoContent)
-  })
+	app.Options("/*", func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusNoContent)
+	})
 
+	todos := []Todo{}
 
-  todos := []Todo{}
+	app.Get("/healthcheck", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
 
-  app.Get("/healthcheck", func(c *fiber.Ctx) error {
-    return c.SendString("OK")
-  })
+	app.Post("/api/upload", func(c *fiber.Ctx) error {
+		form, err := c.MultipartForm()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
+		}
 
-  app.Post("/api/todos", func(c *fiber.Ctx) error {
-    body := c.Body()
+		files := form.File["file"]
 
-    todo := &Todo{}
+		for _, file := range files {
+			filename := filepath.Base(file.Filename)
+			if err := c.SaveFile(file, "./uploads/"+filename); err != nil {
+				return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
+			}
+			return c.JSON(fiber.Map{"fileName": filename})
+		}
 
-    if err := json.Unmarshal(body, todo); err != nil {
-      log.Println("Error parsing request body:", err)
-      return c.Status(fiber.StatusBadRequest).SendString("Bad Request")
-    }
+		return c.SendStatus(fiber.StatusBadRequest)
+	})
 
-    todo.ID = len(todos) + 1
-    todos = append(todos, *todo)
+	app.Get("/api/download/:filename", func(c *fiber.Ctx) error {
+		filename := c.Params("filename")
+		filepath := "./uploads/" + filename
 
-    return c.JSON(todos)
-  })
+		return c.SendFile(filepath)
+	})
 
-  app.Patch("/api/todos/:id/done",  func(c *fiber.Ctx) error {
-    id, err := c.ParamsInt("id")
+	app.Patch("/api/todos/:id/done", func(c *fiber.Ctx) error {
+		id, err := c.ParamsInt("id")
 
-    if err != nil {
-      return c.Status(401).SendString("Invalid ID")
-    }
+		if err != nil {
+			return c.Status(401).SendString("Invalid ID")
+		}
 
-    for i, t := range todos {
-      if t.ID == id {
-        todos[i].Done = true
-        break
-      }
-    }
+		for i, t := range todos {
+			if t.ID == id {
+				todos[i].Done = true
+				break
+			}
+		}
 
-    return c.JSON(todos)
-  })
+		return c.JSON(todos)
+	})
 
-  app.Get("/api/todos", func(c *fiber.Ctx) error {
-    return c.JSON(todos)
-  })
-
-  log.Fatal(app.Listen(":4000"))
+	// Listen on port 4000
+	if err := app.Listen(":4000"); err != nil {
+		panic(err)
+	}
 }
